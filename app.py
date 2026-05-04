@@ -28,17 +28,15 @@ if not st.session_state.autorizado:
     st.title("🔒 Acceso Restringido")
     st.write("Por favor, introduce la contraseña para acceder al Asistente del RRI.")
     
-    # Caja de contraseña
     pwd = st.text_input("Contraseña:", type="password")
     
     if st.button("Entrar"):
         if pwd == "docenteblas":
             st.session_state.autorizado = True
-            st.rerun() # Recarga la página para mostrar el chat
+            st.rerun() 
         else:
             st.error("⚠️ Contraseña incorrecta. Inténtalo de nuevo.")
             
-    # El st.stop() hace que si no estás autorizado, la app se detenga aquí y no cargue el resto.
     st.stop() 
 
 # --- A partir de aquí, el código solo se ejecuta si la contraseña es correcta ---
@@ -128,7 +126,6 @@ def generar_pdf(mensajes, titulo="Documento de Consulta"):
 # ==============================================================
 st.title("🏫 Asistente RRI - CEIP Blas Sierra")
 
-# Disclaimer estático
 st.markdown("<p style='text-align: center; font-size: 15px; color: #888;'>⚠️ <i>Este asistente utiliza IA y puede cometer errores. Contrasta siempre la información con el documento oficial del RRI.</i></p>", unsafe_allow_html=True)
 
 st.divider()
@@ -140,10 +137,9 @@ if index is None or metadata is None:
     st.stop()
 
 # ==============================================================
-# 6. GESTIÓN DE LA MEMORIA Y CHAT (LIENZO EN BLANCO)
+# 6. GESTIÓN DE LA MEMORIA Y CHAT (OPTIMIZADO PARA VELOCIDAD)
 # ==============================================================
 
-# Empezamos con el chat totalmente en blanco para evitar el salto de pantalla
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -151,20 +147,14 @@ for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         
-        # Opciones de descarga solo en los mensajes del asistente
-        if msg["role"] == "assistant": 
-            msg_usuario = st.session_state.messages[i-1] if i>0 and st.session_state.messages[i-1]["role"] == "user" else {"role": "user", "content": "Consulta general"}
-            
-            mensajes_pdf_individual = [msg_usuario, msg]
-            pdf_individual = generar_pdf(mensajes_pdf_individual, "Consulta RRI")
-            pdf_historial = generar_pdf(st.session_state.messages, "Historial de Consultas RRI")
-            
+        # ⚡ ARREGLO DE VELOCIDAD: Ahora lee el PDF generado previamente en lugar de recalcularlo
+        if msg["role"] == "assistant" and "pdf_ind" in msg and "pdf_hist" in msg: 
             col_espacio, col_btn_resp, col_btn_conv = st.columns([4, 3, 3])
             
             with col_btn_resp:
                 st.download_button(
                     label="📥 Guardar respuesta",
-                    data=pdf_individual,
+                    data=msg["pdf_ind"],
                     file_name=f"consulta_rri_{i}.pdf",
                     mime="application/pdf",
                     key=f"dl_resp_{i}",
@@ -174,7 +164,7 @@ for i, msg in enumerate(st.session_state.messages):
             with col_btn_conv:
                 st.download_button(
                     label="📄 Guardar conversación",
-                    data=pdf_historial,
+                    data=msg["pdf_hist"],
                     file_name="historial_rri.pdf",
                     mime="application/pdf",
                     key=f"dl_conv_{i}",
@@ -209,12 +199,11 @@ def buscar_contexto(pregunta):
         if len(contexto_textos) >= MAX_CHUNKS_TO_LLM:
             break
 
-    # Ordenar las páginas citadas de menor a mayor
     citas_ordenadas = sorted(list(documentos_citados), key=lambda x: int(x.split(" ")[-1]))
     return "\n".join(contexto_textos), citas_ordenadas
 
 # ==============================================================
-# 8. INTERACCIÓN DEL USUARIO
+# 8. INTERACCIÓN DEL USUARIO Y GENERACIÓN ÚNICA DE PDFs
 # ==============================================================
 if prompt := st.chat_input("Escribe tu pregunta sobre el Reglamento..."):
     
@@ -266,7 +255,20 @@ if prompt := st.chat_input("Escribe tu pregunta sobre el Reglamento..."):
             respuesta_completa = f"⚠️ Ocurrió un error al contactar con la IA: {e}"
             respuesta_placeholder.markdown(respuesta_completa)
 
-        st.session_state.messages.append({"role": "assistant", "content": respuesta_completa})
+        # ⚡ ARREGLO DE VELOCIDAD: Generar PDFs una sola vez y guardarlos en memoria
+        with st.spinner("Preparando documentos de descarga..."):
+            msg_usuario = st.session_state.messages[-1]
+            msg_asistente = {"role": "assistant", "content": respuesta_completa}
+            
+            pdf_ind = generar_pdf([msg_usuario, msg_asistente], "Consulta RRI")
+            pdf_hist = generar_pdf(st.session_state.messages + [msg_asistente], "Historial de Consultas RRI")
+
+        st.session_state.messages.append({
+            "role": "assistant", 
+            "content": respuesta_completa,
+            "pdf_ind": pdf_ind,
+            "pdf_hist": pdf_hist
+        })
         
         st.rerun()
 
