@@ -44,6 +44,7 @@ if not st.session_state.autorizado:
 FETCH_CHUNKS = 15           
 MAX_CHUNKS_TO_LLM = 6       
 MODEL_NAME = "paraphrase-multilingual-mpnet-base-v2" 
+RRI_PDF_URL = "http://ceipblassierra.centros.educa.jcyl.es/sitio/upload/RRI_octubre_2022.pdf"
 
 SYSTEM_PROMPT = """Eres un experto analizando el Reglamento de Régimen Interno (RRI) del CEIP Blas Sierra.
 Tu objetivo es responder a las dudas de los usuarios basándote ÚNICAMENTE en el contexto extraído de dicho documento.
@@ -146,6 +147,13 @@ if "messages" not in st.session_state:
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+
+        if msg["role"] == "assistant":
+            st.link_button(
+                label="📘 Descargar Reglamento de Régimen Interior",
+                url=RRI_PDF_URL,
+                use_container_width=True
+            )
         
         # ⚡ ARREGLO DE VELOCIDAD: Ahora lee el PDF generado previamente en lugar de recalcularlo
         if msg["role"] == "assistant" and "pdf_ind" in msg and "pdf_hist" in msg: 
@@ -250,6 +258,12 @@ if prompt := st.chat_input("Escribe tu pregunta sobre el Reglamento..."):
                 respuesta_completa += pie_fuentes
 
             respuesta_placeholder.markdown(respuesta_completa)
+
+            st.link_button(
+                label="📘 Descargar Reglamento de Régimen Interior",
+                url=RRI_PDF_URL,
+                use_container_width=True
+            )
 
         except Exception as e:
             respuesta_completa = f"⚠️ Ocurrió un error al contactar con la IA: {e}"
